@@ -1,6 +1,6 @@
 /*
 Vaccination Management System Database
-Author: [Your Name]
+Author: Phil Adams 
 Description:
 Relational schema for managing patients, vaccines,
 vaccination records, and facility stock monitoring.
