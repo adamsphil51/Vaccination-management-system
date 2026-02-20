@@ -1,0 +1,172 @@
+/*
+Vaccination Management System Database
+Author: [Your Name]
+Description:
+Relational schema for managing patients, vaccines,
+vaccination records, and facility stock monitoring.
+Compatible with PostgreSQL.
+*/
+
+-- Drop tables if they already exist (for development reset)
+
+DROP TABLE IF EXISTS vaccinations CASCADE;
+DROP TABLE IF EXISTS vaccine_stock CASCADE;
+DROP TABLE IF EXISTS patients CASCADE;
+DROP TABLE IF EXISTS vaccines CASCADE;
+
+
+-- Patients table
+
+CREATE TABLE patients (
+    patient_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    date_of_birth DATE NOT NULL,
+    gender VARCHAR(10),
+    county VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- Vaccines master table
+
+CREATE TABLE vaccines (
+    vaccine_id SERIAL PRIMARY KEY,
+    vaccine_name VARCHAR(150) NOT NULL,
+    manufacturer VARCHAR(150),
+    doses_required INT NOT NULL CHECK (doses_required > 0),
+    min_age_months INT,
+    max_age_months INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- Vaccination records table
+
+CREATE TABLE vaccinations (
+    vaccination_id SERIAL PRIMARY KEY,
+    patient_id INT NOT NULL,
+    vaccine_id INT NOT NULL,
+    dose_number INT NOT NULL CHECK (dose_number > 0),
+    vaccination_date DATE NOT NULL,
+    batch_number VARCHAR(100),
+    facility_name VARCHAR(150),
+    next_due_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_patient
+        FOREIGN KEY (patient_id)
+        REFERENCES patients(patient_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_vaccine
+        FOREIGN KEY (vaccine_id)
+        REFERENCES vaccines(vaccine_id)
+        ON DELETE CASCADE
+);
+
+
+-- Vaccine stock monitoring table
+
+CREATE TABLE vaccine_stock (
+    stock_id SERIAL PRIMARY KEY,
+    vaccine_id INT NOT NULL,
+    facility_name VARCHAR(150) NOT NULL,
+    quantity_available INT NOT NULL CHECK (quantity_available >= 0),
+    expiry_date DATE NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_stock_vaccine
+        FOREIGN KEY (vaccine_id)
+        REFERENCES vaccines(vaccine_id)
+        ON DELETE CASCADE
+);
+
+
+-- Indexes for performance optimization
+
+CREATE INDEX idx_vaccinations_patient ON vaccinations(patient_id);
+CREATE INDEX idx_vaccinations_vaccine ON vaccinations(vaccine_id);
+CREATE INDEX idx_vaccinations_date ON vaccinations(vaccination_date);
+CREATE INDEX idx_stock_facility ON vaccine_stock(facility_name);
+
+
+-- Sample vaccine data
+
+INSERT INTO vaccines (vaccine_name, manufacturer, doses_required, min_age_months, max_age_months)
+VALUES
+('BCG', 'Serum Institute of India', 1, 0, 12),
+('Pentavalent', 'GlaxoSmithKline', 3, 2, 12),
+('Measles-Rubella', 'UNICEF Supply Division', 2, 9, 60);
+
+
+-- Analytical query: vaccination coverage by county
+
+SELECT
+    p.county,
+    v.vaccine_name,
+    COUNT(DISTINCT p.patient_id) AS vaccinated_population
+FROM vaccinations vac
+JOIN patients p ON vac.patient_id = p.patient_id
+JOIN vaccines v ON vac.vaccine_id = v.vaccine_id
+GROUP BY p.county, v.vaccine_name
+ORDER BY p.county;
+
+
+-- Analytical query: fully vaccinated patients
+
+SELECT
+    p.patient_id,
+    p.first_name,
+    p.last_name,
+    v.vaccine_name,
+    COUNT(vac.dose_number) AS doses_received,
+    v.doses_required
+FROM vaccinations vac
+JOIN patients p ON vac.patient_id = p.patient_id
+JOIN vaccines v ON vac.vaccine_id = v.vaccine_id
+GROUP BY
+    p.patient_id,
+    p.first_name,
+    p.last_name,
+    v.vaccine_name,
+    v.doses_required
+HAVING COUNT(vac.dose_number) >= v.doses_required;
+
+
+-- Analytical query: patients overdue for next dose
+
+SELECT
+    p.patient_id,
+    p.first_name,
+    p.last_name,
+    v.vaccine_name,
+    vac.next_due_date
+FROM vaccinations vac
+JOIN patients p ON vac.patient_id = p.patient_id
+JOIN vaccines v ON vac.vaccine_id = v.vaccine_id
+WHERE vac.next_due_date IS NOT NULL
+AND vac.next_due_date < CURRENT_DATE;
+
+
+-- Analytical query: low stock monitoring
+
+SELECT
+    v.vaccine_name,
+    s.facility_name,
+    s.quantity_available,
+    s.expiry_date
+FROM vaccine_stock s
+JOIN vaccines v ON s.vaccine_id = v.vaccine_id
+WHERE s.quantity_available < 50
+ORDER BY s.quantity_available ASC;
+
+
+-- Monthly vaccination trend
+
+SELECT
+    DATE_TRUNC('month', vaccination_date) AS month,
+    COUNT(*) AS total_vaccinations
+FROM vaccinations
+GROUP BY month
+ORDER BY month;
