@@ -1,0 +1,39 @@
+-- Vaccine Management System – KPI Queries
+
+-- 1. Total vaccinations administered
+SELECT COUNT(*) AS total_vaccinations
+FROM vaccinations;
+
+-- 2. Vaccinations per vaccine type
+SELECT v.vaccine_name, COUNT(vac.vaccination_id) AS total_administered
+FROM vaccinations vac
+JOIN vaccines v ON vac.vaccine_id = v.vaccine_id
+GROUP BY v.vaccine_name
+ORDER BY total_administered DESC;
+
+-- 3. Vaccinations by health worker
+SELECT hw.first_name || ' ' || hw.last_name AS health_worker,
+       COUNT(vac.vaccination_id) AS total_administered
+FROM vaccinations vac
+JOIN health_workers hw ON vac.health_worker_id = hw.health_worker_id
+GROUP BY hw.first_name, hw.last_name
+ORDER BY total_administered DESC;
+
+-- 4. Vaccinations per facility
+SELECT f.facility_name, COUNT(vac.vaccination_id) AS total_vaccinations
+FROM vaccinations vac
+JOIN health_workers hw ON vac.health_worker_id = hw.health_worker_id
+JOIN facilities f ON hw.facility_id = f.facility_id
+GROUP BY f.facility_name
+ORDER BY total_vaccinations DESC;
+
+-- 5. Patient coverage (how many patients have received at least one dose)
+SELECT COUNT(DISTINCT patient_id) AS patients_vaccinated
+FROM vaccinations;
+
+-- 6. Vaccinations by month
+SELECT TO_CHAR(date_administered, 'YYYY-MM') AS month,
+       COUNT(*) AS total_administered
+FROM vaccinations
+GROUP BY month
+ORDER BY month;
